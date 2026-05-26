@@ -915,7 +915,6 @@ class zinasanu_baze():
 
         # 3. sadaļa - attēli:
         if tips == "photo" and "Izpratnes un mācīšanās speciālās vajadzības" in kat:
-            vertejums = "Izvēlētā faila saturā personalizēta pārbaude šobrīd nav pieejama, lūdzu, apskatiet kopējas rekomendācijas!"
             rekomendacijas = rekomendacijas + "Lai padarītu šo studiju materiālu par vairāk pieejamo studējošajiem ar izpratnes un mācīšanās speciālām vajadzībām, ir ieteicams pārliecināties, ka, ja attēlā ir grafiki, grafi, diagrammas u. tml. elementi, tie ir izdalīti ar atsevišķām krāsām."
 
         if tips == "photo" and "Sensorā speciālās vajadzības" in kat:
