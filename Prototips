@@ -1,0 +1,967 @@
+# Izmantotas bibliotēkas:
+# customtkinter: lietotāja saskarnes veidošanai (piemēram, logiem, pogām)
+# filedialog (no tkinter): failu izvēles loga importēšana, lai būtu iespēja izvēlēties failu no datorā esošajiem failiem
+# Document (no python-docx): Document klase no python-docx bibliotēkas, lai apstrādātu .docx tipa failus
+# Presentation (no python-pptx): Presentation klase no python-pptx bibliotēkas, lai apstrādātu .pptx tipa failus
+# pymupdf: bibliotēka, kas nepieciešama .pdf tipa failu apstrādei
+# Image (no PIL): bibliotēka, kas nepieciešama attēlu apstrādei
+# TAGS (no PIL.ExifTags): vārdnīca, kas palīdz pārvērst kodus nosaukumos, lai atrastu sadaļu attēla datos pēc nosaukuma
+import customtkinter
+from tkinter import filedialog
+from docx import Document
+from pptx import Presentation
+import pymupdf
+from PIL import Image
+from PIL.ExifTags import TAGS
+
+# prototipa logu fona tēmas uzstādīšana uz tumšo režīmu:
+customtkinter.set_appearance_mode("dark")
+
+# klase, kas ar customtkinter bibliotēku izveido pamata logu, kurā tiks pārslēgtas prototipa darbības lapas:
+class prototips(customtkinter.CTk):
+    def __init__(self):
+        super().__init__()
+
+        # loga nosaukuma definēšana:
+        self.title("Prototips")
+
+        # loga pamata izmēru definēšana uz platumu = 1000 un augstumu = 500:
+        self.geometry("1000x500")
+
+        # grid konfigurācija, kas nepieciešama, lai loga saturs izplestos kopā ar loga izmēra manuālo mainīšanu:
+        # kontrole, kā lapas tiks izplestas pa pamata logu horizontāli:
+        self.grid_columnconfigure(0, weight=1)
+
+        # kontrole, kā lapas tiks izplestas pa pamata logu vertikāli:
+        self.grid_rowconfigure(0, weight=1)
+
+        # mainīgais, lai glabātu, kura lapa tagad tiek attēlota lietotājam, katra klase to maina patstāvīgi ar metodi "attelo":
+        self.pasreiz = None
+
+        # "attelo" metodes izsaukšana pirmās lapas attēlošanai lietotājam:
+        self.attelo(firstPage)
+
+    # metode lapas attēlošanai logā, 
+    # argumenti: self - atsauce uz pašu objektu, page - klase, kura maina lapu, *args - visi nepieciešamie papildargumenti, nodotie lapai
+    def attelo(self, page, *args):
+        # pārbaude, vai šobrīd kaut kas ir attēlots logā:
+        if self.pasreiz is not None:
+            # ja kāda lapa tiek attēlota, tad izdzēš to no loga, lai lapas nepārklātos:
+            self.pasreiz.destroy()
+
+        # izveido jaunu lapas objektu un saglabā to mainīgā, kas glabā, kura lapa tagad tiek attēlota lietotājam:
+        self.pasreiz = page(self, *args)
+
+        # novieto šo lapu logā pirmajā rindā, pirmajā kolonnā ar izplešanu visos virzienos ("nsew"):
+        self.pasreiz.grid(row = 0, column = 0, sticky = "nsew")
+
+# pirmās lapas klase
+# attēlo informāciju par pašu prototipu, tā lietošanas instrukciju un pogu faila izvēlei
+# nodrošina faila izvēli analīzes veikšanai un ceļa līdz tam izgūšanu
+class firstPage(customtkinter.CTkFrame):
+    def __init__(self, parent):
+        super().__init__(parent)
+        
+        # saglabā atsauci uz pamata (vecāka) logu, lai būtu iespēja pēc tam pārslēgt lapas un izmantot citas metodes:
+        self.parent = parent
+
+        # konfigurē lapai trīs kolonnas, kur instrukcijas sadaļai vienmēr tiks atvēlēti 75% vietas un pogai 25%:
+        self.grid_columnconfigure(0, weight=3)
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+
+        # prototipa pilna nosaukuma objekta izveide un attēlošana lapā:
+        self.nosaukums = customtkinter.CTkLabel(self, text = "Automatizēts risinājums studiju materiālu analīzei un pielāgošanas rekomendāciju sniegšanai", fg_color = "#4747C4", text_color = "#ffffff", font = ("Arial", 14), corner_radius = 10)
+        self.nosaukums.grid(row = 0, column = 0, columnspan = 2, padx = 20, pady = (15, 20), sticky = "ew")
+        
+        # prototipa instrukcijas teksta definēšana, objekta izveide un attēlošana lapā:
+        instr_text = """
+Instrukcija:
+1. Izvēlieties vienu failu analīzes veikšanai attiecībā uz tā pieejamību studējošajiem ar speciālām vajadzībām;
+2. Izvēlieties vienu vai vairākas funkcionēšanas ierobežojumu kategorijas, attiecībā uz kurām tiks veikta materiāla analīze;
+3. Uzsāciet analīzi;
+4. Saņemiet analīzes rezultātus :)
+
+Pieejamie failu paplašinājumi: 
+1. Teksta materiāli: .pdf, .docx, .pptx
+2. Video materiāli: .mp4, .mkv
+3. Attēli: .png, .jpg
+        """
+        self.instr = customtkinter.CTkLabel(self, text = instr_text, fg_color = "#4747C4", text_color = "#ffffff", font = ("Arial", 14), corner_radius = 10, justify = "left", wraplength = 400)
+        self.instr.grid(row = 1, column = 0, padx = (30, 30), pady = 20, sticky = "nw")
+
+        # pogas "Izvēlēties failu" objekta izveide un attēlošana lapā:
+        self.poga_izvele = customtkinter.CTkButton(self, text = "Izvēlēties failu", command = self.faila_izvele)
+        self.poga_izvele.grid(row = 1, column = 1, padx = (10, 30), pady = 20, sticky = "n")
+        
+    # izmantojot filedialog, dod iespēju lietotājam izvēlēties tikai vienu failu analīzei,
+    # tad pārbauda, vai faila tips ir pieejams analīzei un vai izvēlēto failu ir iespējams nolasīt:
+    def faila_izvele(self):
+        # atver faila izvēles logu ar iespēju izvēlēties tikai vienu failu un saglabā informāciju par izvēlēto failu mainīgā "file_full":
+        file_full = filedialog.askopenfile()
+
+        # pārbauda, vai fails ir izvēlēts (file_full nav None):
+        if file_full is not None:
+
+            # saglabā tikai ceļu līdz izvēlētajam failam virknē, tā izmantošanai tālāk:
+            file = str(file_full.name)
+
+            # nosaka faila paplašinājumu:
+            # sākumā virkne tiek sadalīta pēc "/" simboliem, ar to izveidojot sarakstu ar mainīgiem, katrs no kuriem ir daļa no pilna ceļa.
+            # tad, mainīgā "name_ext" tiek saglabāts pēdejais("[-1]") izveidotā saraksta mainīgais, jo tajā atrodas faila nosaukums un paplašinājums, un konvertē to virknē.
+            name_ext = str(file.split("/")[-1])
+
+            # izveidoto virkni "name_ext" sadala no labās puses pēc punkta tikai vienu reizi, 
+            # ar to izgūstot teksta pilno nosaukumu "self.name" un paplašinājumu "self.ext"
+            # tiek darīts no labās puses un tikai vienu reizi, lai nodrošinātu, ka pat ja faila nosaukumā ir punkti, pat tad faila paplašinājums un nosaukums tiks atdalīti korēkti
+            self.name = str(name_ext.rsplit(".", 1)[0])
+            self.ext = str(name_ext.rsplit(".", 1)[1])
+
+            # mainīgais faila paplašinājuma pārbaudei:
+            fails_ir_pieejams = False
+
+            # vārdnica ar pieejamiem apstrādei failu paplašinājumiem un šo paplašinājumu failu tipiem:
+            ext_dict = {
+                "text": ["pdf", "pptx", "docx"],
+                "video": ["mp4", "mkv"],
+                "photo": ["png", "jpg"]
+            }
+
+            # secīgi iziet šo vārdnīcu, salīdzinot saņemto paplašinājumu ar pieejamiem, lai iegūtu faila tipu
+            # ja tāds tips ir atbalstams, tad maina mainīgā faila paplašinājuma pārbaudei "fails_ir_pieejams" vertību uz True:
+            for x, y in ext_dict.items():
+                if self.ext in y:
+                    fails_ir_pieejams = True
+
+            # ja tāds tips ir nav atbalstams, tad attēlo lietotājam kļūdas paziņojuma logu:
+            if fails_ir_pieejams == False:
+                self.parent.attelo(fileErrorPage)
+                return
+
+            # mainīgais faila pieejamības pārbaudei:
+            lasisana_ir_pieejama = True
+
+            # faila pieejamības lasīšanai pārbaude atkarībā no tā paplašinājuma:
+            if self.ext == "docx":
+                try:
+                    fails = Document(file)
+                except:
+                    lasisana_ir_pieejama = False
+            
+            elif self.ext == "pptx":
+                try:
+                    prs = Presentation(file)
+                except:
+                    lasisana_ir_pieejama = False
+            
+            elif self.ext == "pdf":
+                try:
+                    pdf = pymupdf.open(file)
+                except:
+                    lasisana_ir_pieejama = False
+            
+            elif self.ext == "jpg":
+                try:
+                    img = Image.open(file)
+                except:
+                    lasisana_ir_pieejama = False
+            
+            # ja fails nav pieejams, tad lietotājam attēlo kļūdas ziņojumu par to, pretējā gadījumā lietotājam attēlo nākošo lapu:
+            if lasisana_ir_pieejama == False:
+                self.parent.attelo(fileErrorPage)
+            else:
+                self.parent.attelo(thirdPage, file)
+
+# kļūdas ziņojuma (otrā) lapa:
+# tiek attēlota lietotājam, ja izvēlētais fails kāda iemēsla dēļ nav pieejams apstrādei un dod iespēju izvēlēties citu failu:        
+class fileErrorPage(customtkinter.CTkFrame):
+    def __init__(self, parent):
+        super().__init__(parent)
+
+        # saglaba atsauci uz pamata (vecāka) logu, lai būtu iespeja pēc tam pāslēgt lapas un izmantot citas metodes:
+        self.parent = parent
+
+        # konfigurē 0. kolonnas uzvedību mainot loga izmērus, lai teksti vienmēr paliktu viena un ta pati vietā:
+        self.grid_columnconfigure(0, weight = 1)
+
+        # lapas virsraksta "Kļūda!" teksta objekta izveide un attēlošana lietotājam:
+        self.err = customtkinter.CTkLabel(self, text = "Kļūda!", fg_color="#4747C4", text_color="#ffffff", font = ("Arial", 14, "bold"), corner_radius=10, justify="center")      
+        self.err.grid(row = 0, column = 0, pady = (50, 15))
+        
+        # kļūdas teksta objekta izveide un attēlošana lietotājam:
+        error_rep = """
+Diemžēl izvēlētais fails nav pieejams analīzes veikšanai 
+(nekorekts tips vai nav pieejams lasīšanai).
+Lūdzu, izvēlieties citu failu!
+"""     
+        self.error_rep = customtkinter.CTkLabel(self, text = error_rep, fg_color="#4747C4", text_color="#ffffff", font = ("Arial", 14), corner_radius=10, justify="center")
+        self.error_rep.grid(row = 1, column = 0, pady = (0, 15))
+        
+        # pogas "Izvēlēties citu failu" objekta izveide un attēlošana lapā:
+        self.poga_cits = customtkinter.CTkButton(self, text = "Izvēlēties citu failu", fg_color = "#80C973", text_color = "#000000", command = self.poga_cits)
+        self.poga_cits.grid(row = 2, column = 0)
+        
+    # pogas "Izvēlēties citu failu" apstrādes funkcija, ja poga iz uzspiesta, tad lietotājs tiek atgriezts sākumā logā:
+    def poga_cits(self):
+        self.parent.attelo(firstPage)
+
+
+# trešas lapas klase:
+# attēlo lietotājam informāciju par izvēlēto failu, dod iespēju failu izmainīt, 
+# kā arī izvēlēties funkcionēšanas ierobezojumu kategorijas analīzes pielāgošanai.
+# kā argumentu saņem ceļu līdz izvēlētam failam "path":
+class thirdPage(customtkinter.CTkFrame):
+    def __init__(self, parent, path):
+        super().__init__(parent)
+
+        # saglaba atsauci uz pamata (vecāka) logu, lai būtu iespeja pēc tam pāslēgt lapas un izmantot citas metodes:
+        self.parent = parent
+
+        # saglaba ceļu līdz izvēlētam failam mainīgā "file" un "self.path":    
+        self.path = path
+        file = self.path
+
+        # konfigurē lapai trīs kolonnas, kur uz instrukcijas sadaļu vienmēr tiks atvēlēts 75% vietas un uz pogu 25%:
+        self.grid_columnconfigure(0, weight=3)
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+
+        # definē mainīgo logam kas tiks attēlots virs pamata loga, sākumā ir None:
+        self.toplevel_window = None
+
+        # izgūst faila paplašinājumu mainīgajā self.ext:
+        name_ext = str(file.split("/")[-1])
+        self.name = str(name_ext.rsplit(".", 1)[0])
+        self.ext = str(name_ext.rsplit(".", 1)[1])
+
+        # definē sarakstu, kurā glabāsies izvēlētas analīzei funkcionēšanas kategorijas:
+        self.kategorijas = []
+
+        # informācijas par izvēlēto failu rakstīšana, objekta izveide un attēlošana lietotājam:
+        text_izv = "\n Informācija par izvēlēto failu: \n\n1. Faila nosaukums: " + self.name + "\n\n2. Faila paplašinājums: " + self.ext + "\n\n3. Izvēlētās funkcionēšanas ierobežojumu kategorijas: \n" + str(self.kategorijas) + "\n"
+        self.inf_txt = customtkinter.CTkLabel(self, text = text_izv, fg_color="#4747C4", text_color="#ffffff", font = ("Arial", 14), corner_radius=10, justify="left")
+        self.inf_txt.grid(row = 0, column = 0, padx = (30, 30), pady = 20, sticky = "nw")
+
+        # pogas "Izvēlēties speciālās vajadzības kategoriju(-as)" objekta izveide un attēlošana lapā:
+        self.poga_kategorijas = customtkinter.CTkButton(self, text="Izvēlēties speciālās vajadzības kategoriju(-as)", fg_color="#80C973", text_color="#000000", command=self.pogai_kategor)
+        self.poga_kategorijas.grid(row = 0, column = 1, padx = (10, 30), pady = (20, 5), sticky = "n") 
+        
+        # pogas "Izvēlēties citu failu" objekta izveide un attēlošana lapā:
+        self.poga_cits_f = customtkinter.CTkButton(self, text="Izvēlēties citu failu", fg_color="#C50707", text_color="#000000", command=self.pogai_cits_fails)
+        self.poga_cits_f.grid(row = 0, column = 1, padx = (10, 30), pady = (100, 5), sticky = "n")
+
+        # pogas "Uzsākt analīzi!" objekta izveide un attēlošana lapā:
+        self.poga_analize = customtkinter.CTkButton(self, text="Uzsākt analīzi!", fg_color="#80C973", text_color="#000000", command=self.pogai_analize)
+        self.poga_analize.grid(row = 2, column = 0, columnspan = 2, padx = 30, pady = (10, 10), sticky = "ew")    
+    
+    # metode pogas "Izvēlēties speciālās vajadzības kategoriju(-as)" apstrādei:
+    # dod iespeju izvēlēties funkcionēšanas ierobezojumu kategorijas, atverot tam speciālo top līmeņa logu,
+    # kā arī maina pogas tekstu uz "Izmainīt izvēlētās speciālās vajadzības kategoriju(-as)"
+    def pogai_kategor(self):
+        # maina pogas tekstu uz "Izmainīt izvēlētās speciālās vajadzības kategoriju(-as)":
+        self.poga_kategorijas.configure(text="Izmainīt izvēlētās speciālās vajadzības kategoriju(-as)")
+
+        # pārbauda, lai nekādi top līmeņa papildus logi nebūtu atverti, lai vairaki logi netiktu pārklati viens uz otra:
+        if self.toplevel_window is None or not self.toplevel_window.winfo_exists():
+            # ja nekādu citu top līmeņa logu nav, tad veido jaunu ar kategoriju izvēli:
+            self.toplevel_window = topKatIzvele(self)
+        else:
+            # kad logs tik izveidots, fokusejas uz tā:
+            self.toplevel_window.focus()
+
+    # metode pogas "Izvēlēties citu failu" apstrādei:
+    # pēc nospiešanas brīdina lietotāju ar jauno logu, kā ievadīta informācija būs pazaudēta 
+    # un dod iespēju vai nu tomēr izmainīt izvēlēto failu, vai atgriezties atpakaļ pamata loga:
+    def pogai_cits_fails(self):
+        # pārbauda, lai nekādi top līmeņa papildus logi nebūtu atverti, lai vairaki logi netiktu pārklati viens uz otra:
+        if self.toplevel_window is None or not self.toplevel_window.winfo_exists():
+            # ja nekādu citu top līmeņa logu nav, tad veido jaunu ar bridinājumu:
+            self.toplevel_window = bridinajums(self)
+        else:
+            # kad logs tik izveidots, fokusejas uz tā:
+            self.toplevel_window.focus()
+
+    # metode, nepieciešama lai atgrieztu izvēlētas kategorijas mainīga tipi un atjaunotu tos lietotāja lapā:
+    def ret(self, tipi): 
+        # izvēlēto tipu pieraksts mainīgā self.kategorijas:
+        self.kategorijas = tipi
+
+        # jauna teksta izveide:
+        jauns_teksts = "\n Informācija par izvēlēto failu: \n\n1. Faila nosaukums: " + self.name + "\n\n2. Faila paplašinājums: " + self.ext + "\n\n3. Izvēlētās funkcionēšanas ierobežojumu kategorijas: \n" + str(tipi) + "\n"
+        self.inf_txt.configure(text = jauns_teksts)
+    
+    # metode pogas "Uzsākt analīzi!" apstrādei:
+    def pogai_analize(self):
+        # pārbauda, lai kategorijas būtu izvēlētas, tikai tad mēģina uzsākt analīzi:
+        if len(self.kategorijas) != 0:
+            # tiek pildīts ar try lai apstrādatu iespējamas kļūdas, kāda iemesla dēļ nepaķertas pirmajas parbaudēs:
+            try:
+                # piešķiram mainīgiem vert, rek, atg faila analīzes rezultātus, nosūtot ceļu līdz failam, to paplašinājumu un izvēlētas kategorijas: 
+                # vert - vērtējums, vai fails ir pielāgots, 
+                # rek - individuālās rekomendācijas pēc faila anlīzes, 
+                # atg - kopējas rekomendācijas jebkuram izvēlēta tipa faila saturam
+                vert, rek, atg = baze(self.path, self.ext, self.kategorijas)
+
+                # ja viss tiek veiksmīgi saņemts, tad attēlo lietotājam analīzes rezultātus:
+                self.parent.attelo(analizeRezultats, self.name, self.ext, self.kategorijas, vert, rek, atg)
+
+            # ja tiek paķerta kāda kļūda - attēlo informāciju par to lietotājam:
+            except:
+                self.parent.attelo(fileErrorPage)
+        else: 
+            # brīdinajuma par nevienu izvēlētu kategoriju teksta objekta izveide un attēlošana lietotājam:
+            self.navKat = customtkinter.CTkLabel(self, text = "Nav izvēlētā neviena kategorija", text_color="#B62C2C", font = ("Arial", 14))
+            self.navKat.grid(row = 1, column = 0, columnspan = 2, padx = 10, pady = (5, 0), sticky = "ew")     
+
+
+# top līmeņa loga klase, kas brīdina lietotāju, ka izvēloties citu failu, ievadītas kategorijas tiks pazaudētas,
+# kā arī dod iepseju vai nu izmainīt failu, vai atgriezties pamata logā:
+class bridinajums(customtkinter.CTkToplevel):
+    def __init__(self, parent, *args, **kwargs):
+        super().__init__(parent, *args, **kwargs)
+        
+        # daļa, nepieciešama, lai atvērtais logs paliktu virs pamata loga:
+        self.lift()
+        self.attributes("-topmost", True)
+        self.after(100, lambda: self.attributes("-topmost", False))
+
+        # saglaba atsauci uz pamata (vecāka) logu, lai būtu iespeja pēc tam pāslēgt lapas un izmantot citas metodes:
+        self.parent = parent
+
+        # definē atverta loga nosaukumu, izmēru un izkārtojumu:
+        self.title("Uzmanību!")
+        self.geometry("600x500")
+        self.grid_columnconfigure((0, 1), weight = 1)
+        self.grid_rowconfigure((0, 1, 2, 3), weight = 1)
+
+        # loga virsraksta "Uzmanību!" teksta objekta izveide un attēlošana lietotājam:
+        self.uzm_txt = customtkinter.CTkLabel(self, text="Uzmanību!", fg_color="#B62C2C", text_color="#ffffff", font = ("Arial", 14, "bold"), corner_radius=10)
+        self.uzm_txt.grid(row = 0, column = 0, columnspan = 2, pady = (20, 10))
+
+        # loga paziņojuma teksta objekta izveide un attēlošana lietotājam:
+        self.pazin_txt = customtkinter.CTkLabel(self, text="Izvēloties citu failu, visa iepriekš ievadīta informācija tiks izdzēsta.", fg_color="#4747C4", text_color="#ffffff", font = ("Arial", 14, "bold"), corner_radius=10)
+        self.pazin_txt.grid(row = 1, column = 0, columnspan = 2, pady = 10)
+
+        # loga jautājuma teksta objekta izveide un attēlošana lietotājam:
+        self.jaut_txt = customtkinter.CTkLabel(self, text="Vai Jūs tiešām gribāt izvēlēties citu failu?", fg_color="#4747C4", text_color="#ffffff", font = ("Arial", 14, "bold"), corner_radius=10)
+        self.jaut_txt.grid(row = 2, column = 0, columnspan = 2, pady = 10)
+
+        # pogas "Izvēlēties jaunu failu" objekta izveide un attēlošana logā:
+        self.button_apst = customtkinter.CTkButton(self, text="Izvēlēties jaunu failu", fg_color="#80C973", text_color="#000000", command=self.poga_ja)
+        self.button_apst.grid(row=3, column=0, padx=(40, 20), pady = 20, sticky="e")
+
+        # pogas "Atgriezties" objekta izveide un attēlošana logā:
+        self.button_aizl = customtkinter.CTkButton(self, text="Atgriezties", fg_color="#80C973", text_color="#000000", command=self.poga_ne)
+        self.button_aizl.grid(row=3, column=1, padx=(20, 40), pady = 20, sticky="w")
+
+    # pogas "Izvēlēties jaunu failu" apstrādes metode:
+    # ja poga iz uzspiesta, tad atgriež lietotaju uz sākuma logu, bet pašu top līmeņa logu dzēš:
+    def poga_ja(self):
+        self.parent.parent.attelo(firstPage)
+        self.destroy()
+
+    # pogas "Atgriezties" apstrādes metode:   
+    # ja poga ir uzspiesta, tad vienkārsi dzēš top līmeņa logu, atgriežot lietotāju uz kategoriju izvēles logu:
+    def poga_ne(self):
+        self.destroy()
+
+# top līmeņa loga klase, kas attēlo lietotājam pieejamas izvēlei funkcionēšanas ierobezojumu kategorijas
+# un dod iespēju izvēlēties vai izmaninīt izvēlētās kategorijas: 
+class topKatIzvele(customtkinter.CTkToplevel):
+    def __init__(self, parent, *args, **kwargs):
+        super().__init__(parent, *args, **kwargs)
+
+        # daļa, nepieciešama, lai atvērtais logs paliktu virs pamata loga:
+        self.lift()
+        self.attributes("-topmost", True)
+        self.after(100, lambda: self.attributes("-topmost", False))
+
+        # saglaba atsauci uz pamata (vecāka) logu, lai būtu iespeja pēc tam pāslēgt lapas un izmantot citas metodes:
+        self.parent = parent
+
+        # definē atverta loga nosaukumu, izmēru un izkārtojumu:
+        self.title("Kategorijas")
+        self.geometry("400x300")
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(3, weight=1)
+
+        # lapas virsraksta "Kategoriju izvēle" teksta objekta izveide un attēlošana lietotājam: 
+        self.kat_label = customtkinter.CTkLabel(self, text = "Kategoriju izvēle")
+        self.kat_label.grid (row = 0, column = 0, pady = (20, 25))
+
+        # izvēles rūtiņas izpratnes speciālās vajadzības kategorijai izveide un attēlošana:
+        self.check_var_izp = customtkinter.StringVar(value = "off")
+        self.checkbox_izp = customtkinter.CTkCheckBox(self, text = "Izpratnes", command = self.checkbox_izprat, variable = self.check_var_izp, onvalue = "on", offvalue = "off")
+        self.checkbox_izp.grid(row = 1, column = 0, padx = 20, pady = (0, 10), sticky = "w")
+
+        # izvēles rūtiņas sensorā speciālās vajadzības kategorijai izveide un attēlošana:
+        self.check_var_sen = customtkinter.StringVar(value = "off")
+        self.checkbox_sen = customtkinter.CTkCheckBox(self, text = "Sensorā", command = self.checkbox_sensor, variable = self.check_var_sen, onvalue = "on", offvalue = "off")
+        self.checkbox_sen.grid(row = 2, column = 0, padx = 20, pady = (0, 10), sticky = "w")
+        
+        # pogas "Apstiprināt!" kategoriju izvēles apstiprināšānai objekta izveide un attēlošana logā: 
+        self.poga_apst = customtkinter.CTkButton(self, text = "Apstiprināt!", fg_color="#80C973", text_color="#000000", command=self.pogai_apst)
+        self.poga_apst.grid(row = 4, column = 0, pady = 20)
+        
+        # saraksts, kurā tiks saglabātas izvēlētas kategorijas:
+        self.kat = []
+  
+    # checkbox-a "Izpratnes" apstrādes metode:
+    def checkbox_izprat(self):
+        # definē tekstu kurš tiks pievienots izvēlēto kategoriju sarakstam:
+        txt_i = "Izpratnes un mācīšanās speciālās vajadzības"
+        
+        # iegūst checkbox-a "Izpratnes" pašreizējo stāvokli un salīdzina to ar izvēlēto ("on") vērtību:
+        if self.check_var_izp.get() == "on":
+            # ja šis checkbox ir izvēlēts, tad parbauda, vai tas jau ir pievienots kategoriju sarakstam:
+            if txt_i not in self.kat:
+                # ja nav - tad pievieno to sarakstam:
+                self.kat.append(txt_i)
+        # ja checkbox tika uzspiests vēlreiz, tas nozīme, ka šo kategoriju atzīmēja noņemšanai no izvēles, 
+        # līdz ar to tā tiek dzēsta no kategoriju saraksta:
+        else:
+            self.kat.remove(txt_i)
+        
+    # checkbox-a "Sensorā" apstrādes metode:
+    def checkbox_sensor(self):
+        # definē tekstu kurš tiks pievienots izvēlēto kategoriju sarakstam:
+        txt_s = "Sensorā speciālās vajadzības"
+        
+        # iegūst checkbox-a "Sensorā" pašreizējo stāvokli un salīdzina to ar izvēlēto ("on") vērtību:
+        if self.check_var_sen.get() == "on":
+            # ja šis checkbox ir izvēlēts, tad pārbauda, vai tas jau ir pievienots kategoriju sarakstam:
+            if txt_s not in self.kat:
+                # ja nav - tad pievieno to sarakstam:
+                self.kat.append(txt_s)
+
+        # ja checkbox tika uzspiests vēlreiz, tas nozīme, ka šo kategoriju atzīmēja noņemšanai no izvēles, 
+        # līdz ar to tā tiek dzēsta no kategoriju saraksta:
+        else:
+            self.kat.remove(txt_s)
+
+    # pogas "Apstiprināt!" apstrādes metode: 
+    # pēc pogas uzspiešanas izvēlētas kategorijas tiek atgrieztas pamata logam to attēlošanai, bet top līmeņa logs tiek dzēsts
+    def pogai_apst(self):
+        self.parent.ret(self.kat)
+        self.destroy()
+
+# klase, kas attēlo lietotājam informāciju par izvēlēto failu, izvēlētām kategorijam, 
+# kā arī atspoguļo analīzes rezultātu: vai fails ir pielāgots, personālas un kopējas rekomendācijas faila materiāla pielāgošanai
+# kā argumentus saņem ceļu līdz failam, to paplašīnājumu, izvēlētas kategorijas, pieejamības vertējumu, personīgas rekomendācijas un kopejas rekomendācijas,
+# tad vienkārši attēlo visu šo informāciju un dod lietotājam iespēju atkārtot analīzi citam failam:
+class analizeRezultats(customtkinter.CTkFrame):
+    def __init__(self, parent, name, ext, kat, vert, rek, atgadin):
+        super().__init__(parent)
+        
+        # saglaba atsauci uz pamata (vecāka) logu, lai būtu iespeja pēc tam pāslēgt lapas un izmantot citas metodes:
+        self.parent = parent
+    
+        # lapas izkārtojuma definēšana:
+        self.grid_columnconfigure((0, 1), weight = 1)
+        self.grid_rowconfigure((0, 1, 2, 3, 4), weight = 1)
+
+        # informācijas par izvēlēto failu rakstīšana, objekta izveide un attēlošana lietotājam:
+        text_izv = (
+            f"\nInformācija par izvēlēto failu:\n"
+            f"1. Faila nosaukums: {name}\n"
+            f"2. Faila paplašinājums: {ext}\n"
+            f"3. Izvēlētās kategorijas: \n{kat}\n"
+        )
+        self.txt_izvade = customtkinter.CTkLabel(self, text=text_izv, fg_color="#4747C4", text_color="#ffffff", font = ("Arial", 14), corner_radius=10, justify="left", anchor="w")
+        self.txt_izvade.grid(row = 0, column = 0, padx = 15, pady = 15, sticky = "nsew")
+
+        # informācijas par analīzes rezultāta teksta objekta izveide un attēlošana lietotājam:
+        self.rezults = customtkinter.CTkLabel(self, text = "Analīzes rezultāts:\n" + vert, fg_color="#4747C4", text_color="#ffffff", font = ("Arial", 14, "bold"), corner_radius = 10, justify = "left", anchor="w")
+        self.rezults.grid(row = 1, column = 0, padx = 15, pady = 10, sticky = "nsew")
+
+        # mainīgais personīgo rekomendāciju glabāšanai:
+        rekom = ""
+
+        # personīgo rekomendāciju teksta objekta izveide un attēlošana lietotājam:
+        # pārbauda, vai kādas rekomendācijas ir:
+        if len(rek) != 0:
+            # ja personīgas rekomendācijas ir, tad formatē tos saskatamakā veidā:
+            # visam rekomendāciju sarakstam secīgi izgūst katru rekomendāciiju, pievieno to kopēja rekomendāciju tekstam, 
+            # pirms katras rekomendācijas attēlojot "• " zīmi:
+            for a in rek:
+                rekom = rekom + "\n •  " + a  
+                
+            rekom = rekom + "\n"
+
+            # izveidota rekomendāciju teksta bloka objekta izveide un attēlošana lietotājam:
+            self.pers_rek = customtkinter.CTkTextbox(self, width = 400, height = 200, font = ("Arial", 14), fg_color="#4747C4", text_color="#ffffff")
+            self.pers_rek.grid(row = 2, column = 0, padx = 15, pady = 10, sticky = "nsew")
+            self.pers_rek.insert("0.0", rekom)
+            self.pers_rek.configure(state = "disabled")
+        
+        self.kop_rek = customtkinter.CTkTextbox(self, width = 400, height = 400, font = ("Arial", 14), fg_color="#4747C4", text_color="#ffffff")
+        self.kop_rek.grid(row = 0, column = 1, rowspan = 3, padx = 15, pady = 15, sticky = "nsew")
+        self.kop_rek.insert("0.0", atgadin)
+        self.kop_rek.configure(state = "disabled")
+        
+        # pogas "Analizēt citu failu" jauna faila analīzes veikšanas izvēlei objekta izveide un attēlošana logā: 
+        self.poga_cits = customtkinter.CTkButton(self, text = "Analizēt citu failu", fg_color="#80C973", text_color="#000000", command=self.pogai_cits)
+        self.poga_cits.grid(row = 4, column = 0, columnspan = 2, padx = 20, pady = 20, sticky = "ew")
+            
+    # pogas "Analizēt citu failu" apstrādes metode:
+    # ja poga ir uzspiesta, tad atgriež lietotāju uz sākma ekrānu
+    def pogai_cits(self):
+        self.parent.attelo(firstPage)
+             
+# --------------------------------------------------------------------------------------------------------------------------------------
+# klases zemāk veic faila analīzi un neveido nekādas lapas vai logus
+
+# klase faila analīzei:
+# tā izgūst informāciju par failu, nepieciešamo zināšanu bāzei analīzes veikšanai
+# sākumā, tiek noteikts faila tips pēc tā paplašinajuma un tad, atkarīgi no faila tipa, tas saturs tiek analizēts.
+# Teksta failiem pārbauda fontu, fonta izmēru, akcentu esamību un alternatīvus tekstus attēliem.
+# Atseviškiem attēliem noteic vai ir pievienots aizstājejteksts.
+# Atgriež saraksts par informāciju par izvēlēto analīzei faila saturu.
+class faila_analize():
+    # metode, kas izgūst faila tipu pēc tā paplašinājuma:
+    def faila_info_izgusana(self, ext):
+        # vārdnica ar pieejamiem apstrādei failu paplašinājumiem un šo paplašinājumu failu tipiem:
+        ext_dict = {
+            "text": ["docx", "pdf", "pptx"],
+            "video": ["mp4", "mkv"],
+            "photo": ["png", "jpg"]
+        }
+
+        # secīgi iziet šo vārdnīcu, salīdzinot saņemto paplašinājumu ar pieejamiem, lai iegūtu faila tipu
+        # ja atrod šo paplašinājumu, tad atgriež attiecīgo faila tipu, citādi atgriež None, kas turpmāk norādīs uz faila nepieejamību apstrādei
+        for x, y in ext_dict.items():
+            if ext in y:
+                return x
+
+        return None
+
+    # metode informācijas par failu izgūsanai:
+    def teksta_faila_satura_parbaude(self, path, ext, kat):
+        # saraksts, kurā glabasies analīzes laikā iegūta informācija, kur:
+        # rezult = [vai ir korekts fonts teksta failā; vai ir korekts fonta izmērs teksta failā, vai ir akcenti teksta failā, vai teksta failā ir aizstājejteksti attēliem, vai attēlu failiem ir aizstājejteksti]
+        # pēc noklusejuma visas vertības ir None, jo pēc tam pēc analīzes veikšanas, pēc tā, kuras vertības palika None būs iespēja saprast parliecināties, ka pārbaudīts bija korekts faila tips (jo cita faila tipa pārbaudes mainīgie paliks None)
+        rezult = [None, None, None, None, None] 
+
+        # metode, kas palīdzes izgūt no docx tipa failiem fonta izmēru, ja tas ir uzlikts pēc noklusējuma:
+        def noklus_fonta_izm(file):
+            # mēģina piekļut informācijai par noklusējuma fontu ar try, lai, ja fonts nav pēc noklusējuma, nekas nesabrūktu:
+            try:
+                # izgūva un saglaba informāciju par faila stilu:
+                stils = file.styles.element
+
+                # meklē vietu, kur stila XML tiek glabāta informācija par noklusējuma stila fonta izmēru:
+                izm = stils.xpath('//w:docDefaults//w:sz')
+
+                # ja kāda vērtība tiek glabāta, tad tiek izgūsts pirmais tas elements, kas glabj tieši fonta izmēru:
+                if izm:
+                    noklus_izm = izm[0].get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val')
+
+                    # ja vertība tur ir, tad atgriež šo vērtību dalītu ar divi, jo XML-ā ta vērtība ir glabāta puspunktos:
+                    if noklus_izm:
+                        return (int(noklus_izm)/2)
+    
+            # ja meklēšanas laikā noteik kāda kļūda, tad atgriež None, kā arī atgriež to pašu, ja nekas netiks atrasts (ja fonts failā ir ne pec noklusējuma):
+            except Exception as e:
+                return None
+                
+            return None
+    
+        # zemāk notiek faila apstrāde atkarīgi no tā paplašinajuma un tiek aizpildīts rezult saraksts:
+        # 1. docx paplašinajuma failu apstrāde:
+        if ext == "docx":
+            # atvēr failu apstrādes veikšanai:
+            fails = Document(path)
+
+            # ja kategorijās ir "Izpratnes un mācīšanās speciālās vajadzības" kategorija, 
+            # tad pārbauda faila fontu, fonta izmēru un akcentus:
+            if "Izpratnes un mācīšanās speciālās vajadzības" in kat:
+                # noteic vai failā ir noklusējuma fonta izmērs, būs nepieciešams nedaudz zemāk:
+                noklus = noklus_fonta_izm(fails)
+
+                # mainīgie satura aprakstam:
+                # fonts_ir_arial - boolean vai fonts failā ir Arial
+                # izmers_ir_korekts - boolean vai fonta izmērs failā ir vismaz 18 pt
+                # akcenti - boolean vai failā ir izmantoti fonta akcenti (bold, italic, underline)
+                fonts_ir_arial = True
+                izmers_ir_korekts = True
+                akcenti = False
+
+                # pārbauda katru faila paragrafu:
+                for p in fails.paragraphs:
+                    # pārbauda katra paragrafa katru run-u
+                    # (run - ir atseviška formatējuma saturs paragrafā, piemēram, 
+                    # ja paragrafa ir teikums no diviem vārdiem, kur viens no vārdiem ir bold tekstā un otrs nav,
+                    # tad šī paragrafā ir divi run-i jo ir divi atšķirīgie formātejumi) 
+                    for run in p.runs:
+                        # ingorē tukšus fragmentus, noņemot atstarpes un pārbaudot iegūto saturu:
+                        if run.text.strip() == "":
+                            continue
+                        
+                        # pārbaudā fonta izmēru:
+                        # sākumā izmērs ir nezināms:
+                        size = None
+
+                        # pārbauda run līmeņa fonta izmēru, ja tas ir, tad piešķir tā vertību mainīgam size:
+                        if run.font.size:
+                            size = run.font.size.pt
+
+                        # ja run-ā izmēra nav, tad pārbauda visa paragrafa stilu ar to izmēru:
+                        elif p.style.font.size:
+                            size = p.style.font.size.pt
+
+                        # ja arī paragrafā nav noradīts fonta izmērs, tad tiek pieņemts, ka tas dokumentā ir pēc noklusējuma un tā vertība un tiek piešķirta size mainīgam:
+                        elif noklus:
+                            size = noklus
+
+                        # failā izdevas atrast fonta izmēru:
+                        if size is not None:
+                            # pārbauda, vai tas ir atbilstošs, un ja tas ir mazāks par 18, tad mainīgais izmers_ir_korekts tiek mainīts uz False:
+                            if size < 18:
+                                izmers_ir_korekts = False
+                            
+                        # pārbauda fontu failā:
+                        # sākumā pārbauda fontu run-ā:
+                        fonts = run.font.name
+
+                        # ja run-ā fonts nav noradīts, tad pārbauda to paragrafā:
+                        if fonts is None:
+                            fonts = p.style.font.name
+
+                        # ja paragrafā arī nav noradīts fonts, tad paņem to no noklusējuma stila:
+                        if fonts is None:
+                            fonts = fails.styles["Normal"].font.name
+
+                        # tad pārbauda vai fons ir atbistošs, un ja tas nav Arial, tad piešķir mainīgam fonts_ir_arial vertību False:
+                        if fonts != "Arial":
+                            fonts_ir_arial = False
+
+                        # pārbauda akcentus failā:
+                        # run līmenī pārbauda vai tajos ir kaut viens no bold/italc/underline akcentiem, ja ir, tad piesķir mainīgam akcenti true vertību:
+                        if run.bold or run.italic or run.underline:
+                            akcenti = True
+                            
+                # veiktas analīzes rezultātus pieraksta sarakstā rezult:
+                rezult[0] = fonts_ir_arial
+                rezult[1] = izmers_ir_korekts
+                rezult[2] = akcenti
+            
+            # ja kategorijās ir "Sensorā speciālās vajadzības" kategorija, 
+            # tad pārbauda aizstājejtekstus visiem attēliem failā
+            if "Sensorā speciālās vajadzības" in kat:
+                # mainīgas, kas glabj informāciju par to, vai visiem attēliem ir aizstājejteksts:
+                visi_ok = True
+
+                # iet cauri visiem faila attēliem:
+                for att in fails.inline_shapes:
+                    # katram attēlam meklē tas XML-ā sadaļu, kas glabj attēla īpašības:
+                    apr = att._inline.xpath('.//wp:docPr')
+
+                    # ja attēla īpašību apraksts eksistē, tad pārbauda tas daļu, kas glabj aizstājejtekstu:
+                    if apr:
+                        teksts = apr[0].get("descr") 
+
+                        # ja aizstājejteksta nav, tad maina mainīga visi_ok vertību uz False:
+                        if teksts is None or teksts.strip() == "":
+                            visi_ok = False     
+        
+                # pievieno rezult sarakstam attēlu analīzes rezultātus:
+                rezult[3] = visi_ok
+
+        # 2. pptx paplašinajuma failu apstrāde:
+        elif ext == "pptx":
+            # atvēr failu apstrādes veikšanai:
+            prs = Presentation(path)
+
+            # ja kategorijās ir "Izpratnes un mācīšanās speciālās vajadzības" kategorija, 
+            # tad pārbauda faila fontu, fonta izmēru un akcentus:
+            if "Izpratnes un mācīšanās speciālās vajadzības" in kat:
+
+                # mainīgie satura aprakstam:
+                # fonts_ir_arial - boolean vai fonts failā ir Arial
+                # izmers_ir_korekts - boolean vai fonta izmērs failā ir vismaz 18 pt
+                # akcenti - boolean vai failā ir izmantoti fonta akcenti (bold, italic, underline)
+                fonts_ir_arial = True
+                izmers_ir_korekts = True
+                akcenti = False
+
+                # pārbauda katru faila slaidu:
+                for slide in prs.slides:
+                    # pārbauda katra slaida katru pieejamo objektu:
+                    for shape in slide.shapes:
+                        # pārbauda, vai objektam ir teksta lauks:
+                        if shape.has_text_frame:
+                            # ja teksts ir, tad pārbauda visas teksta rindkopas:
+                            for p in shape.text_frame.paragraphs:
+                                # katrā rindkopā pārbauda visus run-us:
+                                for run in p.runs:
+                                    # 1. pārbauda fonta tipu, ja nav atbilstošs, tad maina fonts_ir_arial mainīga vertību uz False:
+                                    if run.font.name != "Arial":
+                                        fonts_ir_arial = False
+
+                                    # 2. pārbauda fonta izmēru, ja tas ir norādīts, bet nav atbilstošs, tad maina izmers_ir_korekts mainīga vertību uz False:
+                                    if run.font.size:
+                                        # dalīšana uz 12700, jo python-pptx glabā fonta izmēru angļu metrikas vienības un tos ir jākonvertē pt vertības:
+                                        if (run.font.size / 12700) < 18:
+                                            izmers_ir_korekts = False
+
+                                    # 3. pārbauda fonta akcentu esamību, ja tāds tiek atrasts, tad maina akcenti mainīga vertību uz True:
+                                    if run.font.bold or run.font.italic or run.font.underline:
+                                        akcenti = True
+
+                # veiktas analīzes rezultātus pieraksta sarakstā rezult:
+                rezult[0] = fonts_ir_arial
+                rezult[1] = izmers_ir_korekts
+                rezult[2] = akcenti
+
+            # ja kategorijās ir "Sensorā speciālās vajadzības" kategorija, 
+            # tad pārbauda aizstājejtekstus visiem attēliem failā   
+            if "Sensorā speciālās vajadzības" in kat:
+                # mainīgas, kas glabj informāciju par to, vai visiem attēliem ir aizstājejteksts:
+                visi_ok = True
+                
+                # pārbauda katru faila slaidu:
+                for slide in prs.slides:
+                    # pārbauda katra slaida katru pieejamo objektu:
+                    for shape in slide.shapes:
+                        # pārbauda vai tekošais objekt ir attēls vai nē:
+                        if hasattr(shape, "image"):
+                            # ja ir attēls, tad no attēla XML struktūras izgūst informāciju par attēlu:
+                            apr = shape._element.xpath('.//p:cNvPr')
+
+                            # ja informācija par attēlu iz pieejama, tad no tas izgūst aizstājejteksta esamību, 
+                            # ja tāda nav, tad maina mainīga visi_ok vērtību uz False:
+                            if apr:
+                                if apr[0].get("descr") is None:
+                                    visi_ok = False
+
+                # pievieno rezult sarakstam attēlu analīzes rezultātus:
+                rezult[3] = visi_ok           
+
+        # 2. pdf paplašinajuma failu apstrāde:
+        elif ext == "pdf":
+            # atvēr failu apstrādes veikšanai:
+            pdf = pymupdf.open(path)
+
+            # ja kategorijās ir "Izpratnes un mācīšanās speciālās vajadzības" kategorija, 
+            # tad pārbauda faila fontu, fonta izmēru un akcentus:
+            if "Izpratnes un mācīšanās speciālās vajadzības" in kat:
+
+                # mainīgie satura aprakstam:
+                # fonts_ir_arial - boolean vai fonts failā ir Arial
+                # izmers_ir_korekts - boolean vai fonta izmērs failā ir vismaz 18 pt
+                # akcenti - boolean vai failā ir izmantoti fonta akcenti (bold, italic, underline)
+                fonts_ir_arial = True
+                izmers_ir_korekts = True
+                akcenti = False
+
+                # pārbauda katru faila lapaspusi:
+                for page in pdf:   
+                    # teksta izgūšana no pdf faila secīgi izjeot visas struktūras (bloks - rinda - teksta fragments):
+                    txt_dict = page.get_text("dict")
+                    for block in txt_dict["blocks"]:
+                        for line in block.get("lines", []):
+                            for span in line.get("spans", []):
+                                # fonta pārbaude, ja nav Arial, tad maina mainiga fonts_ir_arial vērtību uz false:
+                                if "Arial" not in span["font"]:
+                                    fonts_ir_arial = False
+      
+                                # fonta izmēra pārbaude, ja ir < 18 pt, tad maina mainiga izmers_ir_korekts vērtību uz False:
+                                if span["size"] < 18:
+                                    izmers_ir_korekts = False
+
+                                # akcentu pārbaude, ja kāds akcents ir atrasts, tad maina mainiga akcenti vērtību uz True:
+                                if "Bold" in span["font"] or "Italic" in span["font"]:
+                                    akcenti = True
+
+                # veiktas analīzes rezultātus pieraksta sarakstā rezult:
+                rezult[0] = fonts_ir_arial
+                rezult[1] = izmers_ir_korekts
+                rezult[2] = akcenti
+
+            # ja kategorijās ir "Sensorā speciālās vajadzības" kategorija, 
+            # tad pārbauda aizstājejtekstus visiem attēliem failā   
+            if "Sensorā speciālās vajadzības" in kat:
+                # mainīgas, kas glabj informāciju par to, vai visiem attēliem ir aizstājejteksts:
+                visi_ok = True
+
+                # pārbauda katru faila lapaspusi:
+                for page in pdf: 
+
+                    # iegūst visus lapa attēlus sarakstā:
+                    atteli = page.get_images(full = True)
+
+                    # iet cauri katram attēlam:
+                    for attels in atteli:
+                        # katra attēla unikāla identifikātora iegūšana:
+                        id = attels[0]
+
+                        # mēgina iegūst pilno attēla aprakstu pēc id:
+                        try:
+                            img = pdf.xref_object(id)
+
+                            # pārbauda aizstājejteksta esamību, ja nav tad maina visi_ok mainīga vertību uz False:
+                            if "/Alt" not in img:
+                                visi_ok = False
+
+                        # ja ir kāda kļūda attēla apstrādē arī noteic, ka teksta attēlam nav:
+                        except:
+                            visi_ok = False
+
+                # pievieno rezult sarakstam attēlu analīzes rezultātus:
+                rezult[3] = visi_ok
+
+        # atgriež faila pārbaudes rezultātu sarakstu:
+        return rezult     
+
+    # metode attēlu failu pārbaudei:
+    def attelu_faila_satura_parbaude(self, path, ext):
+        # saraksts, kurā glabasies analīzes laikā iegūta informācija, kur:
+        # rezult = [vai ir korekts fonts teksta failā; vai ir korekts fonta izmērs teksta failā, vai ir akcenti teksta failā, vai teksta failā ir aizstājejteksti attēliem, vai attēlu failiem ir aizstājejteksti]
+        # pēc noklusejuma visas vertības ir None, jo pēc tam pēc analīzes veikšanas, pēc tā, kuras vertības palika None būs iespēja saprast parliecināties, ka pārbaudīts bija korekts faila tips (jo cita faila tipa pārbaudes mainīgie paliks None)
+        rezult = [None, None, None, None, None] 
+
+        # ja attēla paplašinājums ir jpg:
+        if ext == "jpg":
+            # atvēr attēlu apstrādes veikšanai:
+            img = Image.open(path)
+
+            # noteic datus par attēlu:
+            vardn = img._getexif()
+
+            # sākumā pieņemam, ka apraksta attēlam nav:
+            ir = False
+
+            # ja dati par attēlu eksistē, tad iziet cauri visiem tas ierakstiem, meklējot attēla aizstajejteksta sadaļu
+            # ja tāda sadaļa tiek atrasta, tad maina mainīga "ir" vertību uz True: 
+            if vardn:
+                for tag in vardn.items():
+                    if TAGS.get(tag) == "ImageDescription":
+                        ir = True
+
+            # pievieno rezult sarakstam attēla analīzes rezultātus:
+            rezult[4] = ir
+       
+        # atgriež faila pārbaudes rezultātu sarakstu:
+        return rezult 
+
+# zināšanu bāzes klase:
+# tā saņem informāciju par failu izveidota analīzes laikā saraksta rezult veidā
+# un, izmantojot to, pārbauda failu uz visiem definētiem kritērijiem
+# atgriež vertejumu par faila pieejamību, personīgas rekomendācijas un kopējas rekomendācijas to izvadei lietotājam
+class zinasanu_baze():
+    def zinasanu_baze(self, ext, tips, kat, rezultati):
+        # mainīgie analīzes rezultātu glabāšanai un atgriešanai 
+        vertejums = "Izvēlētais fails atbilst visiem pārbaudītajiem pieejamības kritērijiem!"
+        rekomendacijas = ""
+        saraksts = []
+
+        # faila satura analīzes rezultātu saraksta indeksēšana ērtākai apstrādei:
+        # rezultati = [fonts, izmers, akcenti, aizstajejteksts, aizstājējteksts attēliem]
+        fonts = 0
+        izmers = 1
+        akcenti = 2
+        aizstajejteksts_teksta = 3 
+        aizstajejteksts_atteliem = 4
+
+        # 1. sadaļa - teksta faili:
+        if tips == "text" and "Izpratnes un mācīšanās speciālās vajadzības" in kat:
+            if rezultati[fonts] == False:
+                saraksts.append("Ieteicams izmainīt teksta fontu uz Arial.")
+                vertejums = "Izvēlētā faila saturā ir konstatēta pieejamības kritēriju neizpilde."
+
+            if rezultati[izmers] == False:
+                saraksts.append("Ieteicams izmainīt fonta izmēru uz vismāz 18 pt.")
+                vertejums = "Izvēlētā faila saturā ir konstatēta pieejamības kritēriju neizpilde."
+
+            if rezultati[akcenti] == False:
+                saraksts.append("Ieteicams izcelt akcentus tekstā ar fonta iespējam (bold, italic, underline u.tml.).")
+                vertejums = "Izvēlētā faila saturā ir konstatēta pieejamības kritēriju neizpilde."
+
+            rekomendacijas = rekomendacijas + (
+                "Lai padarītu šo studiju materiālu par vairāk pieejamo studējošajiem ar izpratnes un mācīšanās speciālām vajadzībām, ir ieteicams:\n"
+                "- Pārliecināties, ka:\n "
+                "-- teksta fonts ir Arial; \n "
+                "-- fonta izmērs ir vismaz 18 pt; \n"
+                "-- definīcijās, terminos, paskaidrojumos u. tml. akcenti ir izcelti, izmantojot fontus un krāsas;\n"
+                "-- jautājumi un uzdevumi ir izdalīti no pārējā teksta un pārnesti uz nākamo rindu/rindkopu. \n"
+                "- Pārliecināties, ka vizuālos materiālos (piem. grafos, diagrammās, grafikos) ir izmantotas krāsas dažādu elementu atdalīšanai. \n"
+                "- Pārliecināties, ka formulas ir pēc iespējas maksimāli sadalītas atsevišķos soļos un ka katrs solis ir paskaidrots atsevišķi\n\n"
+            )
+
+        if tips == "text" and "Sensorā speciālās vajadzības" in kat:
+            if rezultati[aizstajejteksts_teksta] == False:
+                saraksts.append("Failā ir vizuālie materiāli bez aizstājējteksta.")
+                vertejums = "Izvēlētā faila saturā ir konstatēta pieejamības kritēriju neizpilde."
+
+            rekomendacijas = rekomendacijas + (
+                "Lai padarītu šo studiju materiālu par vairāk pieejamo studējošajiem ar sensorām speciālām vajadzībām, ir ieteicams:\n"
+                "- Pārliecināties, ka tekstam ir kopsavilkums faila sākumā, ir noformēti virsraksti un ir pievienots faila saturs. \n"
+                "- Pārliecināties, ka visiem vizuāliem materiāliem ir pievienots aizstājējteksts.\n"
+                "- Pārliecināties, ka visām formulām ir pievienots apraksts par to, no kuriem mainīgajiem tie sastāv, kodiem - to funkcionalitāte.\n"
+                "- Pārliecināties, ka, gadījumā, kad ir nepieciešams parādīt vairākas tabulas vienu aiz otras, tās ir izvietotas secīgi viena zem otras, nevis blakus.\n"
+                "- Pārliecināties, ka formulām ir pievienoti apraksti par to, ko formulas dara, no kādiem mainīgajiem sastāv un kā tie mainīgie mijiedarbojas formulā.\n\n"
+            )
+
+
+        # 2. sadaļa - videomateriāli:
+        if tips == "video" and "Sensorā speciālās vajadzības" in kat:
+            vertejums = "Izvēlētā faila saturā personalizēta pārbaude šobrīd nav pieejama, lūdzu, apskatiet kopējas rekomendācijas!"
+            rekomendacijas = rekomendacijas + (
+                "Lai padarītu šo studiju materiālu par vairāk pieejamo studējošajiem ar sensorām speciālām vajadzībām, ir ieteicams: \n"
+                "- Pārliecināties, ka ir pievienoti subtitri.\n"
+                "- Pārliecināties, ka ir izveidots videosatura teksta variants un ka teksts ir pārbaudīts uz pieejamību.\n\n"
+            )
+
+
+        # 3. sadaļa - attēli:
+        if tips == "photo" and "Izpratnes un mācīšanās speciālās vajadzības" in kat:
+            vertejums = "Izvēlētā faila saturā personalizēta pārbaude šobrīd nav pieejama, lūdzu, apskatiet kopējas rekomendācijas!"
+            rekomendacijas = rekomendacijas + "Lai padarītu šo studiju materiālu par vairāk pieejamo studējošajiem ar izpratnes un mācīšanās speciālām vajadzībām, ir ieteicams pārliecināties, ka, ja attēlā ir grafiki, grafi, diagrammas u. tml. elementi, tie ir izdalīti ar atsevišķām krāsām."
+
+        if tips == "photo" and "Sensorā speciālās vajadzības" in kat:
+            if ext == "jpg":
+                if rezultati[aizstajejteksts_atteliem] == False:
+                    saraksts.append("Attēlām trūkst aizstājējteksta.")
+                    vertejums = "Izvēlētā faila saturā ir konstatēta pieejamības kritēriju neizpilde."
+            if ext == "png":
+                vertejums = "Izvēlētā faila saturā personalizēta pārbaude šobrīd nav pieejama, lūdzu, apskatiet kopējas rekomendācijas!"
+            
+            rekomendacijas = rekomendacijas + "Lai padarītu šo studiju materiālu par vairāk pieejamo studējošajiem ar sensorām speciālām vajadzībām, ir ieteicams pievienot attēlam aizstājējtekstu vai papildus uzrakstīt attēla aprakstu un pārbaudīt izveidotu tekstu uz pieejamību."
+ 
+        # analizes_rezultati = [secinājums, personīgas rekomendācijas, visparējas rekomendācijas]
+        # analizes_rezultati[0] = “Izvēlētais fails atbilst visiem pārbaudītajiem pieejamības kritērijiem!” / “Izvēlētā faila saturā ir konstatēta pieejamības kritēriju neizpilde.”
+        return vertejums, saraksts, rekomendacijas
+
+# funkcija, kas pārvalda analīzes procesu:
+def baze(path, ext, kat):
+    # objekts faila analīzes metozu izsaukšanai:
+    parb = faila_analize()
+
+    # objekts zināšanau bāzes izsaukšanai:
+    zin = zinasanu_baze()
+
+    # faila tipa izgušana pēc faila paplāšinājuma:
+    tips = parb.faila_info_izgusana(ext)
+
+    # ja tips nav atrasts, tad analīze tiek pārtraukta:
+    if tips is None:
+        return "Nezināms faila tips", [], ""
+
+    # ja fails ir teksta materiāls, tad uzsāk teksta failu pārbaudes bloku:
+    if tips == "text":
+        rez = parb.teksta_faila_satura_parbaude(path, ext, kat)
+     
+    # ja fails ir attēla materiāls, tad uzsāk attēlu pārbaudes bloku:
+    elif tips == "photo":
+        rez = parb.attelu_faila_satura_parbaude(path, ext)
+
+    # ja fails ir video materiāls, personalizēta pārbaude sobrīd netiek veikta:
+    else:
+        rez = [None, None, None, None, None]
+
+    # nodod visus rezultātus zināšanu bāzei kriteriju pārbaudei: 
+    return zin.zinasanu_baze(ext, tips, kat, rez)
+    
+# izveido galveno logu un palaiž galveno ciklu:
+app = prototips()
+app.mainloop()
